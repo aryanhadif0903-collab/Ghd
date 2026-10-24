@@ -1,0 +1,64 @@
+name: Kali Linux RDP
+# Dibuat untuk menjalankan Kali Linux lengkap dengan Tools & GUI lewat RDP + Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  kali-rdp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3600
+
+    steps:
+    - name: Update System & Install Docker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y docker.io
+
+    - name: Install Tailscale VPN
+      run: |
+        curl -fsSL https://tailscale.com | sh
+        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --ssh
+
+    - name: Setup Kali Linux Container dengan GUI & Tools
+      run: |
+        # Membuat password untuk user kali
+        export KALI_PASSWORD="YamzzOffical@123"
+        
+        # Menjalankan Docker berisi Kali Linux resmi (versi large mencakup tools hacking & desktop)
+        sudo docker run -d --name kali-desktop --privileged \
+          -p 3389:3389 \
+          -e USER=kali \
+          -e PASSWORD=$KALI_PASSWORD \
+          -e DEBIAN_FRONTEND=noninteractive \
+          kalilinux/kali-rolling:latest \
+          bash -c "
+            apt-get update && \
+            apt-get install -y kali-desktop-xfce kali-linux-large xrdp sudo kali-wallpapers-all && \
+            useradd -m -s /bin/bash kali && \
+            echo 'kali:\$PASSWORD' | chpasswd && \
+            usermod -aG sudo kali && \
+            echo 'kali ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+            systemctl enable xrdp && \
+            echo 'xfce4-session' > /home/kali/.xsession && \
+            chown kali:kali /home/kali/.xsession && \
+            /etc/init.d/xrdp start && \
+            tail -f /dev/null
+          "
+
+    - name: Dapatkan IP Address Tailscale
+      run: |
+        echo "=== DETAIL AKSES RDP KALI LINUX ==="
+        echo "Address IP  : $(tailscale ip -4)"
+        echo "Port        : 3389"
+        echo "Username    : kali"
+        echo "Password    : YamzzOffical@123"
+        echo "==================================="
+
+    - name: Jaga Koneksi Tetap Aktif (Looping)
+      run: |
+        while true; do
+          echo "[$(date)] RDP Kali Linux Aktif..."
+          sleep 300
+        done
+        
